@@ -26,7 +26,9 @@
     "build": "tsup src/index.ts --dts --format esm",
     "test": "vitest --run",
     "test:update": "vitest -u",
-    "test:watch": "vitest -w"
+    "test:watch": "vitest -w",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
   },
   "keywords": [
     "ai",
@@ -40,12 +42,15 @@
     "@ai-sdk/provider": "2.0.0-beta.1",
     "@ai-sdk/provider-utils": "3.0.0-beta.2",
     "@ai-sdk/react": "2.0.0-beta.3",
+    "@eslint/js": "^9.30.1",
     "@types/node": "^24.0.9",
     "ai": "5.0.0-beta.3",
-    "eslint": "^9.30.0",
+    "eslint": "^9.30.1",
+    "eslint-config-prettier": "^10.1.5",
     "prettier": "^3.6.2",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.1",
     "vitest": "^3.2.4",
     "zod": "^3.25.67"
   },
