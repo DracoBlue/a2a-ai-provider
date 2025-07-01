@@ -64,7 +64,7 @@ export function getResponseMetadata(event: A2AStreamEventData) {
     return {
       id: event.id,
       modelId: undefined,
-      timestamp: event.status.timestamp ? new Date(Date.parse(event.status.timestamp)) : undefined
+      timestamp: event.status.timestamp ? new Date(event.status.timestamp) : undefined
     }
   }
   if (event.kind === "message") {
@@ -79,7 +79,7 @@ export function getResponseMetadata(event: A2AStreamEventData) {
     return {
       id: event.taskId,
       modelId: undefined,
-      timestamp: event.status.timestamp ? new Date(Date.parse(event.status.timestamp)) : undefined
+      timestamp: event.status.timestamp ? new Date(event.status.timestamp) : undefined
     }
   }
 

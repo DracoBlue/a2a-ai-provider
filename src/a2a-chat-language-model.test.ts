@@ -4,7 +4,7 @@ import {
     createTestServer,
 } from '@ai-sdk/provider-utils/test';
 import { createA2a } from './a2a-provider';
-import { describe, it, beforeAll, beforeEach, afterAll, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Part } from '@a2a-js/sdk';
 
 const TEST_PROMPT: LanguageModelV2Prompt = [
@@ -13,10 +13,6 @@ const TEST_PROMPT: LanguageModelV2Prompt = [
 
 const provider = createA2a({ });
 const model = provider('http://localhost:41241');
-
-global.beforeAll = beforeAll;
-global.beforeEach = beforeEach;
-global.afterAll = afterAll;
 
 const server = createTestServer({
     // hello world
@@ -296,7 +292,7 @@ describe('doStream', () => {
         {
           "id": "${messageId}",
           "modelId": undefined,
-          "timestamp": 2025-04-02T14:59:25.331Z,
+          "timestamp": ${(new Date("2025-04-02T16:59:25.331844")).toISOString()},
           "type": "response-metadata",
         },
         {
