@@ -292,7 +292,7 @@ describe('doStream', () => {
         {
           "id": "${messageId}",
           "modelId": undefined,
-          "timestamp": 2025-04-02T14:59:25.331Z,
+          "timestamp": ${(new Date("2025-04-02T16:59:25.331844")).toISOString()},
           "type": "response-metadata",
         },
         {
