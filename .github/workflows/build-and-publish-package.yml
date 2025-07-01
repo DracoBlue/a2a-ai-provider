@@ -1,0 +1,67 @@
+name: Publish Alpha Version to NPM
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  
+jobs:
+  publish:
+    name: Publish Alpha to NPM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: '9.15.3'
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Bump Alpha Version
+        run: |
+          pnpm version prerelease --preid=alpha --no-git-tag-version
+
+      - name: Build Package
+        run: pnpm run build
+
+      - name: Push Version Bump to GitHub
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add package.json
+          git commit -m "chore: bump alpha version [skip ci]"
+          git push
+          
+      - name: Create Alpha Tag and Push Changes
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          git tag "v$VERSION"
+          git push origin main --tags
+          git push
+          
+      - name: Publish to NPM
+        run: |
+          pnpm config set //registry.npmjs.org/:_authToken ${NODE_AUTH_TOKEN}
+          pnpm publish --tag alpha --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
