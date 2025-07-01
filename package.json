@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm",
-    "test": "vitest",
+    "test": "vitest --run",
     "test:update": "vitest -u",
     "test:watch": "vitest -w"
   },
