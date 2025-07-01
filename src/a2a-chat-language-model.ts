@@ -203,6 +203,22 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     }
 
     if (response.kind === "task") {
+      if (response.status.message) {
+        response.status.message.parts.forEach((part) => {
+          if (part.kind === "text") {
+            content.push({
+              type: 'text',
+              text: part.text
+            });
+          }
+          if (part.kind === "file") {
+            /* FIXME: handle file */
+          }
+          if (part.kind === "data") {
+            /* FIXME: handle data */
+          }
+        });
+      }
       response.artifacts?.forEach((artifact) => {
         artifact.parts.forEach((part) => {
           if (part.kind === "text") {
@@ -298,6 +314,8 @@ class A2aChatLanguageModel implements LanguageModelV2 {
 
               if (event.kind === 'task') {
                 console.log(`[${currentTaskId}] Task created. Status: ${event.status.state}`);
+
+                // FIXME: handle event.status.message here!
                 return;
               }
 
