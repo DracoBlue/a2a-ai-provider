@@ -25,24 +25,10 @@ describe('doGenerate', () => {
 
     function prepareJsonResponse({
         result,
-        usage = {
-            prompt_tokens: 4,
-            total_tokens: 34,
-            completion_tokens: 30,
-        },
-        id = '16362f24e60340d0994dd205c267a43a',
-        created = 1711113008,
         headers,
     }: {
         content?: string;
         result?: object;
-        usage?: {
-            prompt_tokens: number;
-            total_tokens: number;
-            completion_tokens: number;
-        };
-        id?: string;
-        created?: number;
         headers?: Record<string, string>;
     }) {
         server.urls['http://localhost:41241/.well-known/agent.json'].response = {

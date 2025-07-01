@@ -1,18 +1,16 @@
-import { A2AClient, Message, Part, Message1, MessageSendParams, SendMessageResponse, SendMessageSuccessResponse, Task, Task2, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, FilePart, TextPart } from '@a2a-js/sdk';
+import { A2AClient, Message, MessageSendParams, SendMessageResponse, SendMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, FilePart, TextPart } from '@a2a-js/sdk';
 import {
-  LanguageModelV2, LanguageModelV2CallOptions, LanguageModelV2Prompt, LanguageModelV2Content, LanguageModelV2CallWarning, APICallError,
+  LanguageModelV2, LanguageModelV2CallOptions, LanguageModelV2Prompt, LanguageModelV2Content, LanguageModelV2CallWarning,
   LanguageModelV2StreamPart,
   LanguageModelV2FilePart,
   UnsupportedFunctionalityError,
   LanguageModelV2FinishReason
 } from '@ai-sdk/provider';
-import { convertAsyncIteratorToReadableStream, generateId, IdGenerator, ParseResult } from '@ai-sdk/provider-utils';
+import { convertAsyncIteratorToReadableStream, generateId, IdGenerator } from '@ai-sdk/provider-utils';
 
 type A2AStreamEventData = Task | Message | TaskStatusUpdateEvent | TaskArtifactUpdateEvent;
 
-export type A2aChatSettings = {
-
-}
+export type A2aChatSettings = object
 
 export type A2aChatConfig = {
   readonly provider: string;
@@ -178,7 +176,7 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     const sendResponse: SendMessageResponse = await client.sendMessage(sendParams);
 
     if (isErrorResponse(sendResponse)) {
-      throw new Error("Error sending message:" + (sendResponse as {error: any}).error);
+      throw new Error("Error sending message:" + (sendResponse as {error: {message: string}}).error.message);
     }
 
     // On success, the result can be a Task or a Message. Check which one it is.
@@ -196,8 +194,10 @@ class A2aChatLanguageModel implements LanguageModelV2 {
           });
         }
         if (part.kind === "file") {
+          /* FIXME: handle file */
         }
         if (part.kind === "data") {
+          /* FIXME: handle data */
         }
       });
     }
@@ -212,8 +212,10 @@ class A2aChatLanguageModel implements LanguageModelV2 {
             });
           }
           if (part.kind === "file") {
+            /* FIXME: handle file */
           }
           if (part.kind === "data") {
+            /* FIXME: handle data */
           }
         })
       })
@@ -241,26 +243,26 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     const client = new A2AClient(this.modelId);
     const card = await client.getAgentCard();
     console.log('card', card)
-    const messageId = generateId();
+
+    if (args.messages.length > 1) {
+      throw new Error('Cannot handle more then one message at once!');
+    }
+
+    const message = args.messages[0];
 
     try {
-      console.log(`\n--- Starting streaming task for message ${messageId} ---`);
+      console.log(`\n--- Starting streaming task for message ${message.messageId} ---`);
 
       // Construct the `MessageSendParams` object.
       const streamParams: MessageSendParams = {
-        message: {
-          messageId: messageId,
-          role: "user",
-          parts: [{ kind: "text", text: "Stream me some updates!" }],
-          kind: "message"
-        },
+        message
       };
 
       // Use the `sendMessageStream` method.
       const response = client.sendMessageStream(streamParams);
       let currentTaskId: string | undefined;
       let isFirstChunk = true;
-      let activeArtifactIds = new Set<string>();
+      const activeArtifactIds = new Set<string>();
       let finishReason: LanguageModelV2FinishReason = 'unknown';
 
       return {
@@ -326,7 +328,7 @@ class A2aChatLanguageModel implements LanguageModelV2 {
                 }
 
                 const textContent = event.artifact.parts.filter((part) => part.kind === "text").map((part) => {
-                  return (part as TextPart).text;
+                  return (part).text;
                 }).join(' ');
 
                 controller.enqueue({
@@ -361,7 +363,7 @@ class A2aChatLanguageModel implements LanguageModelV2 {
       };
 
     } catch (error) {
-      throw new Error(`Error during streaming for message ${messageId}:` + error);
+      throw new Error(`Error during streaming for message ${message.messageId}:` + error);
     }
   }
 
@@ -376,7 +378,7 @@ class A2aChatLanguageModel implements LanguageModelV2 {
             return { kind: 'text', text: part.text } as TextPart;
           }
           if (part.type === "file") {
-            return this.convertFileToPart(part) as FilePart;
+            return this.convertFileToPart(part);
           }
           throw new Error(`Unsupported part type: ${part.type}`);
         }),
