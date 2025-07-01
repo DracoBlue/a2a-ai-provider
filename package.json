@@ -1,6 +1,6 @@
 {
   "name": "a2a-ai-provider",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Community A2A provider for the ai-sdk from vercel",
   "homepage": "https://github.com/dracoblue/a2a-ai-provider",
   "repository": {
@@ -28,7 +28,11 @@
     "test:update": "vitest -u",
     "test:watch": "vitest -w"
   },
-  "keywords": ["ai", "vercel-ai", "ai-sdk"],
+  "keywords": [
+    "ai",
+    "vercel-ai",
+    "ai-sdk"
+  ],
   "peerDependencies": {
     "ai": "5.0.0-beta.3"
   },
