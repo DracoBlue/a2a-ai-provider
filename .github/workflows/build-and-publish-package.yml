@@ -61,6 +61,7 @@ jobs:
       - name: Publish to NPM
         run: |
           pnpm config set //registry.npmjs.org/:_authToken ${NODE_AUTH_TOKEN}
+          pnpm publish --tag alpha --access public
           pnpm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
