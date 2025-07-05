@@ -4,7 +4,7 @@ import {
   LanguageModelV2StreamPart,
   LanguageModelV2FilePart,
   UnsupportedFunctionalityError,
-  LanguageModelV2FinishReason
+  LanguageModelV2FinishReason,
 } from '@ai-sdk/provider';
 import { convertAsyncIteratorToReadableStream, generateId, IdGenerator } from '@ai-sdk/provider-utils';
 
@@ -67,7 +67,7 @@ export function getResponseMetadata(event: A2AStreamEventData) {
   }
   if (event.kind === "message") {
     return {
-      id: event.taskId,
+      id: event.messageId,
       modelId: undefined,
       timestamp: undefined
     }
@@ -176,66 +176,14 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     const sendResponse: SendMessageResponse = await client.sendMessage(sendParams);
 
     if (isErrorResponse(sendResponse)) {
-      throw new Error("Error sending message:" + (sendResponse as {error: {message: string}}).error.message);
+      throw new Error("Error sending message:" + (sendResponse as { error: { message: string } }).error.message);
     }
 
     // On success, the result can be a Task or a Message. Check which one it is.
     const response = (sendResponse as SendMessageSuccessResponse).result;
 
     // Convert provider response to AI SDK format
-    const content: LanguageModelV2Content[] = [];
-
-    if (response.kind === "message") {
-      response.parts.forEach((part) => {
-        if (part.kind === "text") {
-          content.push({
-            type: 'text',
-            text: part.text
-          });
-        }
-        if (part.kind === "file") {
-          /* FIXME: handle file */
-        }
-        if (part.kind === "data") {
-          /* FIXME: handle data */
-        }
-      });
-    }
-
-    if (response.kind === "task") {
-      if (response.status.message) {
-        response.status.message.parts.forEach((part) => {
-          if (part.kind === "text") {
-            content.push({
-              type: 'text',
-              text: part.text
-            });
-          }
-          if (part.kind === "file") {
-            /* FIXME: handle file */
-          }
-          if (part.kind === "data") {
-            /* FIXME: handle data */
-          }
-        });
-      }
-      response.artifacts?.forEach((artifact) => {
-        artifact.parts.forEach((part) => {
-          if (part.kind === "text") {
-            content.push({
-              type: 'text',
-              text: part.text
-            });
-          }
-          if (part.kind === "file") {
-            /* FIXME: handle file */
-          }
-          if (part.kind === "data") {
-            /* FIXME: handle data */
-          }
-        })
-      })
-    }
+    const content: LanguageModelV2Content[] = this.convertProviderResponseToContent(response);
 
     return {
       content,
@@ -294,9 +242,9 @@ class A2aChatLanguageModel implements LanguageModelV2 {
             transform(event, controller) {
               console.log('found event', event);
               // Emit raw chunk if requested (before anything else)
-              //if (options.includeRawChunks) {
-              //  controller.enqueue({ type: 'raw', rawValue: event.rawValue });
-              //}
+              if (options.includeRawChunks) {
+                controller.enqueue({ type: 'raw', rawValue: event });
+              }
 
               //if (!event.success) {
               //  controller.enqueue({ type: 'error', error: event.error });
@@ -310,13 +258,6 @@ class A2aChatLanguageModel implements LanguageModelV2 {
                   type: 'response-metadata',
                   ...getResponseMetadata(event),
                 });
-              }
-
-              if (event.kind === 'task') {
-                console.log(`[${currentTaskId}] Task created. Status: ${event.status.state}`);
-
-                // FIXME: handle event.status.message here!
-                return;
               }
 
               // Differentiate subsequent stream events.
@@ -356,8 +297,72 @@ class A2aChatLanguageModel implements LanguageModelV2 {
                 });
 
               } else {
+                if (event.kind === "task") {
+                  console.log(`[${currentTaskId}] Task created. Status: ${event.status.state}`);
+                }
+
+                console.log('event', event);
                 // This could be a direct Message response if the agent doesn't create a task.
-                console.log("Received direct message response in stream:", event);
+                if (isFirstChunk) {
+                  isFirstChunk = false;
+                  controller.enqueue({
+                    type: 'response-metadata',
+                    ...getResponseMetadata(event),
+                  });
+                }
+
+                if (event.kind === "task" && event.status.message) {
+                  controller.enqueue({ type: 'text-start', id: event.status.message.messageId });
+                  for (const part of event.status.message.parts) {
+                    if (part.kind === "text") {
+                      controller.enqueue({
+                        type: 'text-delta',
+                        id: event.status.message.messageId,
+                        delta: part.text,
+                      });
+                    }
+                    // FIXME: handle part.kind == "data"
+                    // FIXME: handle part.kind == "file"
+                  }
+                  controller.enqueue({ type: 'text-end', id: event.status.message.messageId });
+                }
+                if (event.kind === "task" && event.artifacts) {
+                  if (event.artifacts) {
+                    for (const artifact of event.artifacts) {
+                      controller.enqueue({ type: 'text-start', id: artifact.artifactId });
+                      for (const part of artifact.parts) {
+                        if (part.kind === "text") {
+                          controller.enqueue({
+                            type: 'text-delta',
+                            id: artifact.artifactId,
+                            delta: part.text,
+                          });
+                        }
+                        // FIXME: handle part.kind == "data"
+                        // FIXME: handle part.kind == "file"
+                      }
+                      controller.enqueue({ type: 'text-end', id: artifact.artifactId });
+                    }
+                  }
+                }
+
+                if (event.kind === "message") {
+                  controller.enqueue({ type: 'text-start', id: event.messageId });
+                  for (const part of event.parts) {
+                    if (part.kind === "text") {
+                      controller.enqueue({
+                        type: 'text-delta',
+                        id: event.messageId,
+                        delta: part.text,
+                      });
+                    }
+                    // FIXME: handle part.kind == "data"
+                    // FIXME: handle part.kind == "file"
+                  }
+                  controller.enqueue({ type: 'text-end', id: event.messageId });
+                }
+
+                finishReason = 'stop';
               }
             },
 
@@ -403,6 +408,64 @@ class A2aChatLanguageModel implements LanguageModelV2 {
       };
     });
   };
+
+  private convertProviderResponseToContent(response: Task | Message): LanguageModelV2Content[] {
+    const content: LanguageModelV2Content[] = [];
+
+    if (response.kind === "message") {
+      response.parts.forEach((part) => {
+        if (part.kind === "text") {
+          content.push({
+            type: 'text',
+            text: part.text
+          });
+        }
+        if (part.kind === "file") {
+          /* FIXME: handle file */
+        }
+        if (part.kind === "data") {
+          /* FIXME: handle data */
+        }
+      });
+    }
+
+    if (response.kind === "task") {
+      if (response.status.message) {
+        response.status.message.parts.forEach((part) => {
+          if (part.kind === "text") {
+            content.push({
+              type: 'text',
+              text: part.text
+            });
+          }
+          if (part.kind === "file") {
+            /* FIXME: handle file */
+          }
+          if (part.kind === "data") {
+            /* FIXME: handle data */
+          }
+        });
+      }
+      response.artifacts?.forEach((artifact) => {
+        artifact.parts.forEach((part) => {
+          if (part.kind === "text") {
+            content.push({
+              type: 'text',
+              text: part.text
+            });
+          }
+          if (part.kind === "file") {
+            /* FIXME: handle file */
+          }
+          if (part.kind === "data") {
+            /* FIXME: handle data */
+          }
+        })
+      })
+    }
+
+    return content;
+  }
 
   private convertFileToPart(part: LanguageModelV2FilePart): FilePart {
     if (part.type !== "file") {

@@ -5,13 +5,12 @@ import {
 } from '@ai-sdk/provider-utils/test';
 import { createA2a } from './a2a-provider';
 import { describe, it, expect } from 'vitest';
-import { Part } from '@a2a-js/sdk';
 
 const TEST_PROMPT: LanguageModelV2Prompt = [
     { role: 'user', content: [{ type: 'text', text: "tell me a joke" }] },
 ];
 
-const provider = createA2a({ });
+const provider = createA2a({});
 const model = provider('http://localhost:41241');
 
 const server = createTestServer({
@@ -136,10 +135,10 @@ describe('doGenerate', () => {
 
 describe('doStream', () => {
     function prepareStreamResponse({
-        content,
+        chunks,
         headers,
     }: {
-        content: Part[],
+        chunks: object[],
         headers?: Record<string, string>;
     }) {
 
@@ -151,24 +150,39 @@ describe('doStream', () => {
         server.urls['http://localhost:41241/'].response = {
             type: 'stream-chunks',
             headers,
+            chunks: chunks.map((rawChunk: object) => {
+                return `data:  ${JSON.stringify(rawChunk)}\n\n`;
+            })
+            // `data: [DONE]\n\n`,
+            ,
+        };
+    }
+
+    it('Server respondes with task, 4x artifact-update, status-update', async () => {
+        const taskId = "task-id-uuid";
+        const contextId = "context-id-uuid";
+        const artifactId = "artifact-id-uuid";
+        const messageId = "message-id-uuid";
+
+        prepareStreamResponse({
             chunks: [
                 {
                     "jsonrpc": "2.0",
                     "id": 1,
                     "result": {
-                        "id": "225d6247-06ba-4cda-a08b-33ae35c8dcfa",
-                        "contextId": "05217e44-7e9f-473e-ab4f-2c2dde50a2b1",
+                        "id": taskId,
+                        "contextId": contextId,
                         "status": {
                             "state": "submitted",
                             "timestamp": "2025-04-02T16:59:25.331844"
                         },
                         "history": [
                             {
-                                "role": "user",
-                                "parts": content,
-                                "messageId": "bbb7dee1-cf5c-4683-8a6f-4114529da5eb",
-                                "taskId": "225d6247-06ba-4cda-a08b-33ae35c8dcfa",
-                                "contextId": "05217e44-7e9f-473e-ab4f-2c2dde50a2b1"
+                                "role": TEST_PROMPT[0].role === "assistant" ? "agent" : "user",
+                                "parts": TEST_PROMPT[0].content,
+                                "messageId": messageId,
+                                "taskId": taskId,
+                                "contextId": contextId
                             }
                         ],
                         "kind": "task",
@@ -179,10 +193,10 @@ describe('doStream', () => {
                     "jsonrpc": "2.0",
                     "id": 1,
                     "result": {
-                        "taskId": "225d6247-06ba-4cda-a08b-33ae35c8dcfa",
-                        "contextId": "05217e44-7e9f-473e-ab4f-2c2dde50a2b1",
+                        "taskId": taskId,
+                        "contextId": contextId,
                         "artifact": {
-                            "artifactId": "9b6934dd-37e3-4eb1-8766-962efaab63a1",
+                            "artifactId": artifactId,
                             "parts": [
                                 { "kind": "text", "text": "<section 1...>" }
                             ]
@@ -196,10 +210,10 @@ describe('doStream', () => {
                     "jsonrpc": "2.0",
                     "id": 1,
                     "result": {
-                        "taskId": "225d6247-06ba-4cda-a08b-33ae35c8dcfa",
-                        "contextId": "05217e44-7e9f-473e-ab4f-2c2dde50a2b1",
+                        "taskId": taskId,
+                        "contextId": contextId,
                         "artifact": {
-                            "artifactId": "9b6934dd-37e3-4eb1-8766-962efaab63a1",
+                            "artifactId": artifactId,
                             "parts": [
                                 { "kind": "text", "text": "<section 2...>" }
                             ],
@@ -213,10 +227,10 @@ describe('doStream', () => {
                     "jsonrpc": "2.0",
                     "id": 1,
                     "result": {
-                        "taskId": "225d6247-06ba-4cda-a08b-33ae35c8dcfa",
-                        "contextId": "05217e44-7e9f-473e-ab4f-2c2dde50a2b1",
+                        "taskId": taskId,
+                        "contextId": contextId,
                         "artifact": {
-                            "artifactId": "9b6934dd-37e3-4eb1-8766-962efaab63a1",
+                            "artifactId": artifactId,
                             "parts": [
                                 { "kind": "text", "text": "<section 3...>" }
                             ]
@@ -230,8 +244,8 @@ describe('doStream', () => {
                     "jsonrpc": "2.0",
                     "id": 1,
                     "result": {
-                        "taskId": "225d6247-06ba-4cda-a08b-33ae35c8dcfa",
-                        "contextId": "05217e44-7e9f-473e-ab4f-2c2dde50a2b1",
+                        "taskId": taskId,
+                        "contextId": contextId,
                         "status": {
                             "state": "completed",
                             "timestamp": "2025-04-02T16:59:35.331844"
@@ -241,23 +255,7 @@ describe('doStream', () => {
                     }
                 }
 
-            ].map((rawChunk) => {
-                return `data:  ${JSON.stringify(rawChunk)}\n\n`;
-            })
-            // `data: [DONE]\n\n`,
-            ,
-        };
-    }
-
-    it('Client asks the agent to write a long paper describing an attached picture.', async () => {
-        prepareStreamResponse({
-            content: [{ kind: 'text', text: "write a long paper describing the attached pictures" }, {
-                "kind": "file",
-                "file": {
-                    "mimeType": "image/png",
-                    uri: "https://example.org/favicon.ico"
-                }
-            }]
+            ]
         });
 
         const { stream } = await model.doStream({
@@ -266,8 +264,6 @@ describe('doStream', () => {
         });
 
         const array = await convertReadableStreamToArray(stream);
-        const messageId = array.find((item) => item.type === "response-metadata")?.id;
-        const artifactId = array.find((item) => item.type === "text-start")?.id;
 
         expect(array).toMatchInlineSnapshot(`
       [
@@ -276,7 +272,7 @@ describe('doStream', () => {
           "warnings": [],
         },
         {
-          "id": "${messageId}",
+          "id": "${taskId}",
           "modelId": undefined,
           "timestamp": ${(new Date("2025-04-02T16:59:25.331844")).toISOString()},
           "type": "response-metadata",
@@ -297,6 +293,267 @@ describe('doStream', () => {
         },
         {
           "delta": "<section 3...>",
+          "id": "${artifactId}",
+          "type": "text-delta",
+        },
+        {
+          "id": "${artifactId}",
+          "type": "text-end",
+        },
+        {
+          "finishReason": "stop",
+          "type": "finish",
+          "usage": {
+            "inputTokens": undefined,
+            "outputTokens": undefined,
+            "totalTokens": undefined,
+          },
+        },
+      ]
+    `);
+    });
+
+
+
+    it('Server respondes with message', async () => {
+        const contextId = "context-id-uuid";
+        const messageId = "message-id-uuid";
+
+        prepareStreamResponse({
+            chunks: [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {
+                        "messageId": messageId,
+                        "contextId": contextId,
+                        "parts": [
+                            {
+                                "kind": "text",
+                                "text": "<section 1...><section 2...><section 3...>"
+                            }
+                        ],
+                        "kind": "message",
+                        "metadata": {}
+                    }
+                }
+            ]
+        });
+
+        const { stream } = await model.doStream({
+            prompt: TEST_PROMPT,
+            includeRawChunks: false,
+        });
+
+        const array = await convertReadableStreamToArray(stream);
+
+        expect(array).toMatchInlineSnapshot(`
+      [
+        {
+          "type": "stream-start",
+          "warnings": [],
+        },
+        {
+          "id": "${messageId}",
+          "modelId": undefined,
+          "timestamp": undefined,
+          "type": "response-metadata",
+        },
+        {
+          "id": "${messageId}",
+          "type": "text-start",
+        },
+        {
+          "delta": "<section 1...><section 2...><section 3...>",
+          "id": "${messageId}",
+          "type": "text-delta",
+        },
+        {
+          "id": "${messageId}",
+          "type": "text-end",
+        },
+        {
+          "finishReason": "stop",
+          "type": "finish",
+          "usage": {
+            "inputTokens": undefined,
+            "outputTokens": undefined,
+            "totalTokens": undefined,
+          },
+        },
+      ]
+    `);
+    });
+
+    it('Server respondes with task (input-required)', async () => {
+        const taskId = "task-id-uuid";
+        const contextId = "context-id-uuid";
+        const messageId = "message-id-uuid";
+
+        prepareStreamResponse({
+            chunks: [
+                {
+                    "jsonrpc": "2.0",
+                    "id": "1",
+                    "result": {
+                        "id": taskId,
+                        "contextId": contextId,
+                        "status": {
+                            "state": "input-required",
+                            "message": {
+                                "role": "agent",
+                                "parts": [
+                                    {
+                                        "kind": "text",
+                                        "text": "<section 1...><section 2...><section 3...>"
+                                    }
+                                ],
+                                "messageId": messageId,
+                                "taskId": taskId,
+                                "contextId": contextId
+                            },
+                            "timestamp": "2024-03-15T10:10:00Z"
+                        },
+                        "history": [
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "kind": "text",
+                                        "text": "I'd like to book a flight."
+                                    }
+                                ],
+                                "messageId": messageId,
+                                "taskId": taskId,
+                                "contextId": contextId
+                            }
+                        ],
+                        "kind": "task"
+                    }
+                }
+            ]
+        });
+
+        const { stream } = await model.doStream({
+            prompt: TEST_PROMPT,
+            includeRawChunks: false,
+        });
+
+        const array = await convertReadableStreamToArray(stream);
+
+        expect(array).toMatchInlineSnapshot(`
+      [
+        {
+          "type": "stream-start",
+          "warnings": [],
+        },
+        {
+          "id": "${taskId}",
+          "modelId": undefined,
+          "timestamp": ${(new Date("2024-03-15T10:10:00Z")).toISOString()},
+          "type": "response-metadata",
+        },
+        {
+          "id": "${messageId}",
+          "type": "text-start",
+        },
+        {
+          "delta": "<section 1...><section 2...><section 3...>",
+          "id": "${messageId}",
+          "type": "text-delta",
+        },
+        {
+          "id": "${messageId}",
+          "type": "text-end",
+        },
+        {
+          "finishReason": "stop",
+          "type": "finish",
+          "usage": {
+            "inputTokens": undefined,
+            "outputTokens": undefined,
+            "totalTokens": undefined,
+          },
+        },
+      ]
+    `);
+    });
+
+    it('Server respondes with task (with artifacts)', async () => {
+        const taskId = "task-id-uuid";
+        const contextId = "context-id-uuid";
+        const messageId = "message-id-uuid";
+        const artifactId = "artifact-id-uuid";
+
+        prepareStreamResponse({
+            chunks: [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    result: {
+                        "id": taskId,
+                        "contextId": contextId,
+                        "status": {
+                            "state": "completed"
+                        },
+                        "artifacts": [
+                            {
+                                "artifactId": artifactId,
+                                "name": "joke",
+                                "parts": [
+                                    {
+                                        "kind": "text",
+                                        "text": "<section 1...><section 2...><section 3...>"
+                                    }
+                                ]
+                            }
+                        ],
+                        "history": [
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "kind": "text",
+                                        "text": "tell me a joke"
+                                    }
+                                ],
+                                "messageId": messageId,
+                                "taskId": taskId,
+                                "contextId": contextId
+                            }
+                        ],
+                        "kind": "task",
+                        "metadata": {}
+                    }
+                }
+            ]
+        });
+
+        const { stream } = await model.doStream({
+            prompt: TEST_PROMPT,
+            includeRawChunks: false,
+        });
+
+        const array = await convertReadableStreamToArray(stream);
+
+        expect(array).toMatchInlineSnapshot(`
+      [
+        {
+          "type": "stream-start",
+          "warnings": [],
+        },
+        {
+          "id": "${taskId}",
+          "modelId": undefined,
+          "timestamp": undefined,
+          "type": "response-metadata",
+        },
+        {
+          "id": "${artifactId}",
+          "type": "text-start",
+        },
+        {
+          "delta": "<section 1...><section 2...><section 3...>",
           "id": "${artifactId}",
           "type": "text-delta",
         },
