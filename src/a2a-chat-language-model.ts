@@ -157,11 +157,11 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     console.log('card', card)
     console.log('args', args)
 
-    if (args.messages.length > 1) {
-      throw new Error('Cannot handle more then one message at once!');
+    if (args.messages.length < 1) {
+      throw new Error('Cannot handle zero messages!');
     }
 
-    const message = args.messages[0];
+    const message = args.messages[args.messages.length - 1];
 
     const sendParams: MessageSendParams = {
       message,
@@ -170,6 +170,10 @@ class A2aChatLanguageModel implements LanguageModelV2 {
         acceptedOutputModes: ['text/plain']
       }
     };
+
+    if (options.providerOptions?.a2a?.contextId) {
+      sendParams.message.contextId = options.providerOptions?.a2a?.contextId as string;
+    }
 
     console.log('sendParams', sendParams.message.parts)
 
@@ -208,11 +212,17 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     const card = await client.getAgentCard();
     console.log('card', card)
 
-    if (args.messages.length > 1) {
-      throw new Error('Cannot handle more then one message at once!');
+    if (args.messages.length < 1) {
+      throw new Error('Cannot handle less then one message!');
     }
 
-    const message = args.messages[0];
+
+
+    const message = args.messages[args.messages.length - 1];
+
+    if (options.providerOptions?.a2a?.contextId) {
+      message.contextId = options.providerOptions?.a2a?.contextId as string;
+    }
 
     try {
       console.log(`\n--- Starting streaming task for message ${message.messageId} ---`);
