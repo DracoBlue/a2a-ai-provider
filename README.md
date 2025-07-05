@@ -43,6 +43,29 @@ const result = await generateText({
 console.log(result.text);
 ```
 
+or if you like the stream version, use:
+
+```javascript
+import { a2a } from "a2a-ai-provider";
+import { streamText } from "ai"
+
+const chatId = "unique-chat-id"; // for each conversation to keep history in a2a server
+
+const streamResult = streamText({
+  model: a2a('https://your-a2a-server.example.com'),
+  prompt: 'What is love?',
+  providerOptions: {
+    "a2a": {
+      "contextId": chatId,
+    }
+  },
+});
+
+await streamResult.consumeStream();
+
+console.log(await streamResult.content);
+```
+
 ## 🛠 Provider Options
 
 ```ts
