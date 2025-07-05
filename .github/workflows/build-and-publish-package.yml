@@ -51,9 +51,11 @@ jobs:
           git commit -m "chore: bump alpha version [skip ci]"
           git push
           
-      - name: Create Alpha Tag and Push Changes
+      - name: Create Tag and Push Changes
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -p "require('./package.json').
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
           git tag "v$VERSION"
           git push origin main --tags
           git push
