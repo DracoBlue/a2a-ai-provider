@@ -234,6 +234,29 @@ class A2aChatLanguageModel implements LanguageModelV2 {
         message
       };
 
+      console.log('sendMessageStream');
+      const clientCard = await client.getAgentCard();
+
+      let simulatedStream = null;
+
+      if (!clientCard.capabilities.streaming) {
+        const nonStreamingResponse = await client.sendMessage(streamParams);
+
+        if ("result" in nonStreamingResponse) {
+          // task or message
+          simulatedStream = new ReadableStream<A2AStreamEventData>({
+            start(controller) {
+              controller.enqueue(nonStreamingResponse.result);
+              controller.close();
+            },
+          });
+        }
+
+        if ("error" in nonStreamingResponse) {
+          // FIXME: error
+        }
+      }
+
       // Use the `sendMessageStream` method.
       const response = client.sendMessageStream(streamParams);
       let currentTaskId: string | undefined;
@@ -296,7 +319,7 @@ class A2aChatLanguageModel implements LanguageModelV2 {
       }
 
       return {
-        stream: convertAsyncIteratorToReadableStream(response).pipeThrough(
+        stream: (simulatedStream || convertAsyncIteratorToReadableStream(response)).pipeThrough(
           new TransformStream<
             A2AStreamEventData,
             LanguageModelV2StreamPart
@@ -400,7 +423,6 @@ class A2aChatLanguageModel implements LanguageModelV2 {
           }),
         ),
       };
-
     } catch (error) {
       throw new Error(`Error during streaming for message ${message.messageId}:` + error);
     }
