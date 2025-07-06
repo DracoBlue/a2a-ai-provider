@@ -9,6 +9,8 @@ import { describe, it, expect } from 'vitest';
 const TEST_PROMPT: LanguageModelV2Prompt = [
     { role: 'user', content: [{ type: 'text', text: "tell me a joke" }] },
 ];
+const base64encodedTransparentGif = `R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7`;
+
 
 const provider = createA2a({});
 const model = provider('http://localhost:41241');
@@ -129,9 +131,122 @@ describe('doGenerate', () => {
     `);
     });
 
+    it('Server responds with files in artifacts', async () => {
 
+        const contextId = "context-id-uuid";
+        const taskId = "task-id-uuid";
+
+        prepareJsonResponse({
+            result: {
+                artifacts: [
+                    {
+                        artifactId: "7d3371fd-002c-4008-8ef1-1c58674cc2ba",
+                        description: "",
+                        name: "chart_b4e5f4d5-fe7a-4458-b914-182d3555cc64",
+                        parts: [
+                            {
+                                file: {
+                                    bytes: base64encodedTransparentGif,
+                                    mimeType: "image/png",
+                                    name: "generated_chart.png",
+                                },
+                                kind: "file",
+                            },
+                        ],
+                    },
+                ],
+                contextId: contextId,
+                history: [
+                    {
+                        contextId: contextId,
+                        kind: "message",
+                        messageId: "sent-message-id-uuid",
+                        parts: [
+                            {
+                                kind: "text",
+                                text: "Generate a chart of revenue: Jan,$1000 Feb,$2000 Mar,$1500",
+                            },
+                        ],
+                        role: "user",
+                        taskId: taskId,
+                    },
+                ],
+                id: taskId,
+                kind: "task",
+                status: {
+                    state: "completed",
+                },
+            }
+        });
+
+        const { content } = await model.doGenerate({
+            prompt: [
+                {
+                    content: [
+                        {
+                            type: "text",
+                            "text": "Generate a chart of revenue: Jan,$1000 Feb,$2000 Mar,$1500"
+                        }
+                    ],
+                    role: "user",
+
+                }
+            ],
+        });
+        console.log(content);
+
+        expect(content).toMatchInlineSnapshot(`[
+  {
+    "data": Uint8Array [
+      71,
+      73,
+      70,
+      56,
+      57,
+      97,
+      1,
+      0,
+      1,
+      0,
+      128,
+      0,
+      0,
+      0,
+      0,
+      0,
+      255,
+      255,
+      255,
+      33,
+      249,
+      4,
+      1,
+      0,
+      0,
+      0,
+      0,
+      44,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      2,
+      1,
+      68,
+      0,
+      59,
+    ],
+    "mediaType": "image/png",
+    "type": "file",
+  },
+]`);
+    });
 });
-
 
 describe('doStream', () => {
     function prepareStreamResponse({
@@ -371,6 +486,244 @@ describe('doStream', () => {
         {
           "id": "${messageId}",
           "type": "text-end",
+        },
+        {
+          "finishReason": "stop",
+          "type": "finish",
+          "usage": {
+            "inputTokens": undefined,
+            "outputTokens": undefined,
+            "totalTokens": undefined,
+          },
+        },
+      ]
+    `);
+    });
+
+    it('Server responds with files in artifacts', async () => {
+
+        const contextId = "context-id-uuid";
+        const taskId = "task-id-uuid";
+
+        prepareStreamResponse({
+            chunks: [
+                {
+                    id: 1,
+                    jsonrpc: "2.0",
+                    result: {
+                        artifacts: [
+                            {
+                                artifactId: "7d3371fd-002c-4008-8ef1-1c58674cc2ba",
+                                description: "",
+                                name: "chart_b4e5f4d5-fe7a-4458-b914-182d3555cc64",
+                                parts: [
+                                    {
+                                        file: {
+                                            bytes: base64encodedTransparentGif,
+                                            mimeType: "image/png",
+                                            name: "generated_chart.png",
+                                        },
+                                        kind: "file",
+                                    },
+                                ],
+                            },
+                        ],
+                        contextId: contextId,
+                        history: [
+                            {
+                                contextId: contextId,
+                                kind: "message",
+                                messageId: "sent-message-id-uuid",
+                                parts: [
+                                    {
+                                        kind: "text",
+                                        text: "Generate a chart of revenue: Jan,$1000 Feb,$2000 Mar,$1500",
+                                    },
+                                ],
+                                role: "user",
+                                taskId: taskId,
+                            },
+                        ],
+                        id: taskId,
+                        kind: "task",
+                        status: {
+                            state: "completed",
+                        },
+                    },
+                }
+            ]
+        });
+
+        const { stream } = await model.doStream({
+            prompt: [
+                {
+                    content: [
+                        {
+                            type: "text",
+                            "text": "Generate a chart of revenue: Jan,$1000 Feb,$2000 Mar,$1500"
+                        }
+                    ],
+                    role: "user",
+
+                }
+            ],
+            includeRawChunks: false,
+        });
+
+        const array = await convertReadableStreamToArray(stream);
+
+        expect(array).toMatchInlineSnapshot(`
+      [
+        {
+          "type": "stream-start",
+          "warnings": [],
+        },
+        {
+          "id": "${taskId}",
+          "modelId": undefined,
+          "timestamp": undefined,
+          "type": "response-metadata",
+        },
+        {
+          "data": "${base64encodedTransparentGif}",
+          "mediaType": "image/png",
+          "type": "file",
+        },
+        {
+          "finishReason": "stop",
+          "type": "finish",
+          "usage": {
+            "inputTokens": undefined,
+            "outputTokens": undefined,
+            "totalTokens": undefined,
+          },
+        },
+      ]
+    `);
+    });
+
+    it('Server responds with files in artifact-update', async () => {
+
+        const contextId = "context-id-uuid";
+        const taskId = "task-id-uuid";
+        const artifactId = "artifact-id-uuid";
+        const base64encodedTransparentGif = `R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7`;
+
+        prepareStreamResponse({
+            chunks: [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {
+                        "id": taskId,
+                        "contextId": contextId,
+                        "status": {
+                            "state": "submitted",
+                        },
+                        "history": [
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        text: "Generate a chart of revenue: Jan,$1000 Feb,$2000 Mar,$1500",
+                                        type: "text"
+                                    }
+                                ],
+                                "taskId": taskId,
+                                "contextId": contextId
+                            }
+                        ],
+                        "kind": "task",
+                        "metadata": {}
+                    }
+                },
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {
+                        "taskId": taskId,
+                        "contextId": contextId,
+                        "artifact": {
+                            "artifactId": artifactId,
+                            "parts": [
+                                {
+                                    file: {
+                                        bytes: base64encodedTransparentGif,
+                                        mimeType: "image/png",
+                                        name: "generated_chart.png",
+                                    },
+                                    kind: "file",
+                                },]
+                        },
+                        "append": true,
+                        "lastChunk": true,
+                        "kind": "artifact-update"
+                    }
+                },
+                {
+                    id: 1,
+                    jsonrpc: "2.0",
+                    result: {
+                        contextId: contextId,
+                        history: [
+                            {
+                                contextId: contextId,
+                                kind: "message",
+                                messageId: "sent-message-id-uuid",
+                                parts: [
+                                    {
+                                        kind: "text",
+                                        text: "Generate a chart of revenue: Jan,$1000 Feb,$2000 Mar,$1500",
+                                    },
+                                ],
+                                role: "user",
+                                taskId: taskId,
+                            },
+                        ],
+                        id: taskId,
+                        kind: "task",
+                        status: {
+                            state: "completed",
+                        },
+                    },
+                }
+            ]
+        });
+
+        const { stream } = await model.doStream({
+            prompt: [
+                {
+                    content: [
+                        {
+                            type: "text",
+                            "text": "Generate a chart of revenue: Jan,$1000 Feb,$2000 Mar,$1500"
+                        }
+                    ],
+                    role: "user",
+
+                }
+            ],
+            includeRawChunks: false,
+        });
+
+        const array = await convertReadableStreamToArray(stream);
+
+        expect(array).toMatchInlineSnapshot(`
+      [
+        {
+          "type": "stream-start",
+          "warnings": [],
+        },
+        {
+          "id": "${taskId}",
+          "modelId": undefined,
+          "timestamp": undefined,
+          "type": "response-metadata",
+        },
+        {
+          "data": "${base64encodedTransparentGif}",
+          "mediaType": "image/png",
+          "type": "file",
         },
         {
           "finishReason": "stop",
