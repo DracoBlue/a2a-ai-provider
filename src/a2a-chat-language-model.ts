@@ -1,10 +1,11 @@
-import { A2AClient, Message, MessageSendParams, SendMessageResponse, SendMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, FilePart, TextPart } from '@a2a-js/sdk';
+import { A2AClient, Message, MessageSendParams, SendMessageResponse, SendMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, FilePart, TextPart, Part } from '@a2a-js/sdk';
 import {
   LanguageModelV2, LanguageModelV2CallOptions, LanguageModelV2Prompt, LanguageModelV2Content, LanguageModelV2CallWarning,
   LanguageModelV2StreamPart,
   LanguageModelV2FilePart,
   UnsupportedFunctionalityError,
   LanguageModelV2FinishReason,
+  LanguageModelV2TextPart,
 } from '@ai-sdk/provider';
 import { convertAsyncIteratorToReadableStream, generateId, IdGenerator } from '@ai-sdk/provider-utils';
 
@@ -236,8 +237,62 @@ class A2aChatLanguageModel implements LanguageModelV2 {
       const response = client.sendMessageStream(streamParams);
       let currentTaskId: string | undefined;
       let isFirstChunk = true;
-      const activeArtifactIds = new Set<string>();
+      const activeTextIds = new Set<string>();
       let finishReason: LanguageModelV2FinishReason = 'unknown';
+
+      const enqueueNonTextParts = (controller: TransformStreamDefaultController<LanguageModelV2StreamPart>, parts: Part[]) => {
+        const nonTextContentParts = parts.filter((part) => part.kind !== "text");
+
+        for (const part of nonTextContentParts) {
+          if (part.kind === "file") {
+            if ("bytes" in part.file) {
+              controller.enqueue({
+                type: "file",
+                data: part.file.bytes,
+                mediaType: part.file.mimeType as string
+              })
+            }
+            if ("uri" in part.file) {
+              // FIXME: missing handling for part.file.uri!
+            }
+          }
+          // FIXME: missing part.kind === "data"
+        }
+      };
+
+      const enqueueTextParts = (controller: TransformStreamDefaultController<LanguageModelV2StreamPart>, parts: Part[], id: string, lastChunk: boolean) => {
+        const textContentParts = parts.filter((part) => part.kind === "text");
+
+        if (textContentParts.length > 0) {
+          if (!activeTextIds.has(id)) {
+            controller.enqueue({ type: 'text-start', id });
+            activeTextIds.add(id);
+          }
+
+          const textContent = parts.filter((part) => part.kind === "text").map((part) => {
+            return (part).text;
+          }).join(' ');
+
+          controller.enqueue({
+            type: 'text-delta',
+            id,
+            delta: textContent,
+          });
+
+          if (lastChunk) {
+            controller.enqueue({
+              type: 'text-end',
+              id,
+            });
+            activeTextIds.delete(id);
+          }
+        }
+      }
+
+      const enqueueParts = (controller: TransformStreamDefaultController<LanguageModelV2StreamPart>, parts: Part[], id: string, lastChunk: boolean) => {
+        enqueueNonTextParts(controller, parts);
+        enqueueTextParts(controller, parts, id, lastChunk);
+      }
 
       return {
         stream: convertAsyncIteratorToReadableStream(response).pipeThrough(
@@ -291,21 +346,7 @@ class A2aChatLanguageModel implements LanguageModelV2 {
                   console.log('  o ' + JSON.stringify(part));
                 })
 
-                if (!activeArtifactIds.has(event.artifact.artifactId)) {
-                  controller.enqueue({ type: 'text-start', id: event.artifact.artifactId });
-                  activeArtifactIds.add(event.artifact.artifactId);
-                }
-
-                const textContent = event.artifact.parts.filter((part) => part.kind === "text").map((part) => {
-                  return (part).text;
-                }).join(' ');
-
-                controller.enqueue({
-                  type: 'text-delta',
-                  id: event.artifact.artifactId,
-                  delta: textContent,
-                });
-
+                enqueueParts(controller, event.artifact.parts, event.artifact.artifactId, event.lastChunk as boolean);
               } else {
                 if (event.kind === "task") {
                   console.log(`[${currentTaskId}] Task created. Status: ${event.status.state}`);
@@ -322,54 +363,18 @@ class A2aChatLanguageModel implements LanguageModelV2 {
                 }
 
                 if (event.kind === "task" && event.status.message) {
-                  controller.enqueue({ type: 'text-start', id: event.status.message.messageId });
-                  for (const part of event.status.message.parts) {
-                    if (part.kind === "text") {
-                      controller.enqueue({
-                        type: 'text-delta',
-                        id: event.status.message.messageId,
-                        delta: part.text,
-                      });
-                    }
-                    // FIXME: handle part.kind == "data"
-                    // FIXME: handle part.kind == "file"
-                  }
-                  controller.enqueue({ type: 'text-end', id: event.status.message.messageId });
+                  enqueueParts(controller, event.status.message.parts, event.status.message.messageId, true);
                 }
                 if (event.kind === "task" && event.artifacts) {
                   if (event.artifacts) {
                     for (const artifact of event.artifacts) {
-                      controller.enqueue({ type: 'text-start', id: artifact.artifactId });
-                      for (const part of artifact.parts) {
-                        if (part.kind === "text") {
-                          controller.enqueue({
-                            type: 'text-delta',
-                            id: artifact.artifactId,
-                            delta: part.text,
-                          });
-                        }
-                        // FIXME: handle part.kind == "data"
-                        // FIXME: handle part.kind == "file"
-                      }
-                      controller.enqueue({ type: 'text-end', id: artifact.artifactId });
+                      enqueueParts(controller, artifact.parts, artifact.artifactId, true);
                     }
                   }
                 }
 
                 if (event.kind === "message") {
-                  controller.enqueue({ type: 'text-start', id: event.messageId });
-                  for (const part of event.parts) {
-                    if (part.kind === "text") {
-                      controller.enqueue({
-                        type: 'text-delta',
-                        id: event.messageId,
-                        delta: part.text,
-                      });
-                    }
-                    // FIXME: handle part.kind == "data"
-                    // FIXME: handle part.kind == "file"
-                  }
-                  controller.enqueue({ type: 'text-end', id: event.messageId });
+                  enqueueParts(controller, event.parts, event.messageId, true);
                 }
 
                 finishReason = 'stop';
@@ -377,8 +382,8 @@ class A2aChatLanguageModel implements LanguageModelV2 {
             },
 
             flush(controller) {
-              activeArtifactIds.forEach((activeArtifactId) => {
-                controller.enqueue({ type: 'text-end', id: activeArtifactId });
+              activeTextIds.forEach((activeTextId) => {
+                controller.enqueue({ type: 'text-end', id: activeTextId });
               })
 
               controller.enqueue({
@@ -428,10 +433,24 @@ class A2aChatLanguageModel implements LanguageModelV2 {
           content.push({
             type: 'text',
             text: part.text
-          });
+          } as LanguageModelV2TextPart);
         }
         if (part.kind === "file") {
-          /* FIXME: handle file */
+          if ("bytes" in part.file) {
+            content.push({
+              mediaType: part.file.mimeType as string,
+              filename: part.file.name as string,
+              data: Uint8Array.from(Buffer.from(part.file.bytes, 'base64'))
+            } as LanguageModelV2FilePart)
+          } else {
+            if ("uri" in part.file) {
+              content.push({
+                mediaType: part.file.mimeType as string,
+                filename: part.file.name as string,
+                data: part.file.uri as URL
+              } as LanguageModelV2FilePart)
+            }
+          }
         }
         if (part.kind === "data") {
           /* FIXME: handle data */
@@ -449,7 +468,21 @@ class A2aChatLanguageModel implements LanguageModelV2 {
             });
           }
           if (part.kind === "file") {
-            /* FIXME: handle file */
+            if ("bytes" in part.file) {
+              content.push({
+                mediaType: part.file.mimeType as string,
+                filename: part.file.name as string,
+                data: Uint8Array.from(Buffer.from(part.file.bytes, 'base64'))
+              } as LanguageModelV2FilePart)
+            } else {
+              if ("uri" in part.file) {
+                content.push({
+                  mediaType: part.file.mimeType as string,
+                  filename: part.file.name as string,
+                  data: part.file.uri as URL
+                } as LanguageModelV2FilePart)
+              }
+            }
           }
           if (part.kind === "data") {
             /* FIXME: handle data */
@@ -465,7 +498,21 @@ class A2aChatLanguageModel implements LanguageModelV2 {
             });
           }
           if (part.kind === "file") {
-            /* FIXME: handle file */
+            if ("bytes" in part.file) {
+              content.push({
+                mediaType: part.file.mimeType as string,
+                filename: part.file.name as string,
+                data: Uint8Array.from(Buffer.from(part.file.bytes, 'base64'))
+              } as LanguageModelV2FilePart)
+            } else {
+              if ("uri" in part.file) {
+                content.push({
+                  mediaType: part.file.mimeType as string,
+                  filename: part.file.name as string,
+                  data: part.file.uri as URL
+                } as LanguageModelV2FilePart)
+              }
+            }
           }
           if (part.kind === "data") {
             /* FIXME: handle data */
