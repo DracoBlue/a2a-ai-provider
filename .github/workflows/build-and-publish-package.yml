@@ -43,15 +43,18 @@ jobs:
       - name: Build Package
         run: pnpm run build
 
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Push Version Bump to GitHub
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
           git add package.json
           git commit -m "chore: bump alpha version [skip ci]"
           git push
           
-      - name: Create Alpha Tag and Push Changes
+      - name: Create Tag and Push Changes
         run: |
           VERSION=$(node -p "require('./package.json').version")
           git tag "v$VERSION"
