@@ -6,6 +6,7 @@ import {
   UnsupportedFunctionalityError,
   LanguageModelV2FinishReason,
   LanguageModelV2TextPart,
+  LanguageModelV2File,
 } from '@ai-sdk/provider';
 import { convertAsyncIteratorToReadableStream, generateId, IdGenerator } from '@ai-sdk/provider-utils';
 
@@ -416,7 +417,7 @@ class A2aChatLanguageModel implements LanguageModelV2 {
             return { kind: 'text', text: part.text } as TextPart;
           }
           if (part.type === "file") {
-            return this.convertFileToPart(part);
+            return this.convertFileToProviderPart(part);
           }
           throw new Error(`Unsupported part type: ${part.type}`);
         }),
@@ -424,99 +425,59 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     });
   };
 
-  private convertProviderResponseToContent(response: Task | Message): LanguageModelV2Content[] {
+  private convertProviderPartToContent(part: Part): LanguageModelV2Content[] {
     const content: LanguageModelV2Content[] = [];
+
+    if (part.kind === "text") {
+      content.push({
+        type: 'text',
+        text: part.text
+      } as LanguageModelV2TextPart);
+    }
+
+    if (part.kind === "file") {
+      if ("bytes" in part.file) {
+        content.push({
+          type: "file",
+          mediaType: part.file.mimeType as string,
+          data: Uint8Array.from(Buffer.from(part.file.bytes, 'base64'))
+        } as LanguageModelV2File)
+      } else {
+        if ("uri" in part.file) {
+          content.push({
+            type: "file",
+            mediaType: part.file.mimeType as string,
+            data: part.file.uri as string
+          } as LanguageModelV2File)
+        }
+      }
+    }
+    if (part.kind === "data") {
+      /* FIXME: handle data */
+    }
+
+    return content;
+  }
+
+  private convertProviderResponseToContent(response: Task | Message): LanguageModelV2Content[] {
+    let content: LanguageModelV2Content[] = [];
 
     if (response.kind === "message") {
       response.parts.forEach((part) => {
-        if (part.kind === "text") {
-          content.push({
-            type: 'text',
-            text: part.text
-          } as LanguageModelV2TextPart);
-        }
-        if (part.kind === "file") {
-          if ("bytes" in part.file) {
-            content.push({
-              mediaType: part.file.mimeType as string,
-              filename: part.file.name as string,
-              data: Uint8Array.from(Buffer.from(part.file.bytes, 'base64'))
-            } as LanguageModelV2FilePart)
-          } else {
-            if ("uri" in part.file) {
-              content.push({
-                mediaType: part.file.mimeType as string,
-                filename: part.file.name as string,
-                data: part.file.uri as URL
-              } as LanguageModelV2FilePart)
-            }
-          }
-        }
-        if (part.kind === "data") {
-          /* FIXME: handle data */
-        }
+        content = content.concat(...this.convertProviderPartToContent(part).flat())
       });
     }
 
     if (response.kind === "task") {
       if (response.status.message) {
+
         response.status.message.parts.forEach((part) => {
-          if (part.kind === "text") {
-            content.push({
-              type: 'text',
-              text: part.text
-            });
-          }
-          if (part.kind === "file") {
-            if ("bytes" in part.file) {
-              content.push({
-                mediaType: part.file.mimeType as string,
-                filename: part.file.name as string,
-                data: Uint8Array.from(Buffer.from(part.file.bytes, 'base64'))
-              } as LanguageModelV2FilePart)
-            } else {
-              if ("uri" in part.file) {
-                content.push({
-                  mediaType: part.file.mimeType as string,
-                  filename: part.file.name as string,
-                  data: part.file.uri as URL
-                } as LanguageModelV2FilePart)
-              }
-            }
-          }
-          if (part.kind === "data") {
-            /* FIXME: handle data */
-          }
+          content = content.concat(...this.convertProviderPartToContent(part).flat());
         });
       }
       response.artifacts?.forEach((artifact) => {
         artifact.parts.forEach((part) => {
-          if (part.kind === "text") {
-            content.push({
-              type: 'text',
-              text: part.text
-            });
-          }
-          if (part.kind === "file") {
-            if ("bytes" in part.file) {
-              content.push({
-                mediaType: part.file.mimeType as string,
-                filename: part.file.name as string,
-                data: Uint8Array.from(Buffer.from(part.file.bytes, 'base64'))
-              } as LanguageModelV2FilePart)
-            } else {
-              if ("uri" in part.file) {
-                content.push({
-                  mediaType: part.file.mimeType as string,
-                  filename: part.file.name as string,
-                  data: part.file.uri as URL
-                } as LanguageModelV2FilePart)
-              }
-            }
-          }
-          if (part.kind === "data") {
-            /* FIXME: handle data */
-          }
+          content = content.concat(...this.convertProviderPartToContent(part).flat());
         })
       })
     }
@@ -524,7 +485,7 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     return content;
   }
 
-  private convertFileToPart(part: LanguageModelV2FilePart): FilePart {
+  private convertFileToProviderPart(part: LanguageModelV2FilePart): FilePart {
     if (part.type !== "file") {
       throw new UnsupportedFunctionalityError({
         functionality:

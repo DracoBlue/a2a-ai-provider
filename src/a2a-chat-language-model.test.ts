@@ -241,8 +241,8 @@ describe('doGenerate', () => {
       0,
       59,
     ],
-    "filename": "generated_chart.png",
     "mediaType": "image/png",
+    "type": "file",
   },
 ]`);
     });
