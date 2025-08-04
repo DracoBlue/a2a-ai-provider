@@ -16,10 +16,10 @@ An `@ai-sdk` compatible AI provider implementation for the [A2A Protocol](https:
 pnpm install a2a-ai-provider
 ```
 
-Make sure you also install `ai` (v5 which is currently @beta):
+Make sure you also install `ai`:
 
 ```bash
-pnpm install ai@beta
+pnpm install ai
 ```
 
 ## 🚀 Usage
