@@ -1,4 +1,6 @@
-import { A2AClient, Message, MessageSendParams, SendMessageResponse, SendMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, FilePart, TextPart, Part } from '@a2a-js/sdk';
+import { Message, MessageSendParams, SendMessageResponse, SendMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, FilePart, TextPart, Part } from '@a2a-js/sdk';
+import { A2AClient } from "@a2a-js/sdk/client";
+
 import {
   LanguageModelV2, LanguageModelV2CallOptions, LanguageModelV2Prompt, LanguageModelV2Content, LanguageModelV2CallWarning,
   LanguageModelV2StreamPart,
