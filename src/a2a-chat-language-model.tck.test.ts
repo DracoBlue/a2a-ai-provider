@@ -9,7 +9,7 @@ const AGENT_URL = 'http://0.0.0.0:9999/.well-known/agent-card.json'
 
 describe('tck test', () => {
 
- it('facts app doGenerate', async () => {
+ it('tck echo doGenerate', async () => {
 
     const model = provider(AGENT_URL, {
       "a2a": {
@@ -30,7 +30,7 @@ describe('tck test', () => {
   }, 60000);
 
 
-   it('facts app doStream', async () => {
+   it('tck echo doStream', async () => {
     
     const model = provider(AGENT_URL, {
       "a2a": {
@@ -47,7 +47,7 @@ describe('tck test', () => {
 
     const taskId = array[1].id;
     const artifactId = array[2].id;
-    const jokeText = `Hello World! You said: 'Tell me a fact about chuck norris.'. Thanks for your message!`;
+    const echoText = `Hello World! You said: 'Tell me a fact about chuck norris.'. Thanks for your message!`;
 
     expect(array).toMatchInlineSnapshot(`
       [
@@ -66,7 +66,7 @@ describe('tck test', () => {
           "type": "text-start",
         },
         {
-          "delta": "${jokeText}",
+          "delta": "${echoText}",
           "id": "${artifactId}",
           "type": "text-delta",
         },
@@ -85,6 +85,62 @@ describe('tck test', () => {
         },
       ]
     `);
+  }, 60000);
+
+   it('tck hello', async () => {
+
+    const model = provider(AGENT_URL, {
+      "a2a": {
+        "contextId": crypto.randomUUID(),
+      }
+    });
+
+    const { content } = await model.doGenerate({
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: "Hello!" }] }
+      ],
+    });
+
+    expect(content[0].type).toBe("text");
+    expect(content[0].text).toBe("Hello World! Nice to meet you!");
+  }, 60000);
+
+
+   it('tck how are you', async () => {
+
+    const model = provider(AGENT_URL, {
+      "a2a": {
+        "contextId": crypto.randomUUID(),
+      }
+    });
+
+    const { content } = await model.doGenerate({
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: "How are you?" }] }
+      ],
+    });
+
+    expect(content[0].type).toBe("text");
+    expect(content[0].text).toBe("I'm doing great! Thanks for asking. How can I help you today?");
+  }, 60000);
+
+
+   it('tck goodbye', async () => {
+
+    const model = provider(AGENT_URL, {
+      "a2a": {
+        "contextId": crypto.randomUUID(),
+      }
+    });
+
+    const { content } = await model.doGenerate({
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: "goodbye" }] }
+      ],
+    });
+
+    expect(content[0].type).toBe("text");
+    expect(content[0].text).toBe("Goodbye! Have a wonderful day!");
   }, 60000);
 
 });
