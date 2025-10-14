@@ -7,7 +7,7 @@ const provider = createA2a({});
 
 const AGENT_URL = 'http://0.0.0.0:9999/.well-known/agent-card.json'
 
-describe('integration test', () => {
+describe('tck test', () => {
 
  it('facts app doGenerate', async () => {
 

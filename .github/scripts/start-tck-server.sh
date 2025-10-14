@@ -42,4 +42,4 @@ CMD [ "uv", "run", ".", "--host", "0.0.0.0" ]
 EOF
 
 docker build -t a2a-tck-server .
-docker run -p 9999:9999 a2a-tck-server
+docker run -p 9999:9999 $1 --name a2a-tck-server a2a-tck-server
