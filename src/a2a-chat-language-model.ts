@@ -179,6 +179,20 @@ class A2aChatLanguageModel implements LanguageModelV2 {
       sendParams.message.contextId = options.providerOptions?.a2a?.contextId as string;
     }
 
+    // Add experimental_context to message if provided
+    // This allows passing request-scoped context (like initiatingHumanId) through A2A protocol
+    // The receiving agent can extract this from message.experimental_context
+    // Note: AI SDK doesn't pass experimental_context to providers, so we check both:
+    // 1. options.experimental_context (if AI SDK ever supports it)
+    // 2. options.providerOptions?.a2a?.experimental_context (our workaround)
+    const experimentalContext =
+      (options as any).experimental_context ||
+      options.providerOptions?.a2a?.experimental_context;
+
+    if (experimentalContext) {
+      (sendParams.message as any).experimental_context = experimentalContext;
+    }
+
     console.log('sendParams', sendParams.message.parts)
 
     const sendResponse: SendMessageResponse = await client.sendMessage(sendParams);
@@ -228,6 +242,38 @@ class A2aChatLanguageModel implements LanguageModelV2 {
       message.contextId = options.providerOptions?.a2a?.contextId as string;
     }
 
+    // Add experimental_context to message if provided
+    // This allows passing request-scoped context (like initiatingHumanId) through A2A protocol
+    // The receiving agent can extract this from message.experimental_context
+    // Note: AI SDK doesn't pass experimental_context to providers, so we check both:
+    // 1. options.experimental_context (if AI SDK ever supports it)
+    // 2. options.providerOptions?.a2a?.experimental_context (our workaround)
+    const experimentalContext =
+      (options as any).experimental_context ||
+      options.providerOptions?.a2a?.experimental_context;
+
+    console.log('[a2a-ai-provider] Checking for experimental_context', {
+      hasOptionsExperimentalContext: !!(options as any).experimental_context,
+      hasProviderOptions: !!options.providerOptions,
+      hasA2aOptions: !!options.providerOptions?.a2a,
+      hasA2aExperimentalContext: !!options.providerOptions?.a2a?.experimental_context,
+      experimentalContext: experimentalContext,
+      messageId: message.messageId,
+    });
+
+    if (experimentalContext) {
+      (message as any).experimental_context = experimentalContext;
+      console.log('[a2a-ai-provider] Added experimental_context to message', {
+        messageId: message.messageId,
+        hasExperimentalContext: !!(message as any).experimental_context,
+        experimentalContext: (message as any).experimental_context,
+      });
+    } else {
+      console.log('[a2a-ai-provider] No experimental_context found - not adding to message', {
+        messageId: message.messageId,
+      });
+    }
+
     try {
       console.log(`\n--- Starting streaming task for message ${message.messageId} ---`);
 
@@ -235,6 +281,13 @@ class A2aChatLanguageModel implements LanguageModelV2 {
       const streamParams: MessageSendParams = {
         message
       };
+
+      console.log('[a2a-ai-provider] Message before sending to A2A SDK', {
+        messageId: message.messageId,
+        hasExperimentalContext: !!(message as any).experimental_context,
+        experimentalContext: (message as any).experimental_context,
+        streamParamsMessageHasExperimentalContext: !!(streamParams.message as any).experimental_context,
+      });
 
       console.log('sendMessageStream');
       const clientCard = await client.getAgentCard();
