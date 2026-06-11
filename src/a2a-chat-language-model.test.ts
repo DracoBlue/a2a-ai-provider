@@ -3,8 +3,10 @@ import {
     convertReadableStreamToArray,
     createTestServer,
 } from '@ai-sdk/provider-utils/test';
+import { generateObject } from 'ai';
 import { createA2a } from './a2a-provider';
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 
 const TEST_PROMPT: LanguageModelV2Prompt = [
     { role: 'user', content: [{ type: 'text', text: "tell me a joke" }] },
@@ -129,6 +131,49 @@ describe('doGenerate', () => {
         },
       ]
     `);
+    });
+
+    it('supports generateObject when the A2A agent returns JSON text', async () => {
+        prepareJsonResponse({
+            result: {
+                "messageId": "363422be-b0f9-4692-a24d-278670e7c7f1",
+                "contextId": "c295ea44-7543-4f78-b524-7a38915ad6e4",
+                "parts": [
+                    {
+                        "kind": "text",
+                        "text": JSON.stringify({
+                            recipe: {
+                                name: "Simple Lasagna",
+                                ingredients: ["pasta", "tomato sauce", "cheese"],
+                                steps: ["Layer ingredients", "Bake until bubbling"],
+                            },
+                        }),
+                    }
+                ],
+                "kind": "message",
+                "metadata": {}
+            }
+        });
+
+        const { object } = await generateObject({
+            model,
+            schema: z.object({
+                recipe: z.object({
+                    name: z.string(),
+                    ingredients: z.array(z.string()),
+                    steps: z.array(z.string()),
+                }),
+            }),
+            prompt: 'Generate a lasagna recipe.',
+        });
+
+        expect(object).toEqual({
+            recipe: {
+                name: "Simple Lasagna",
+                ingredients: ["pasta", "tomato sauce", "cheese"],
+                steps: ["Layer ingredients", "Bake until bubbling"],
+            },
+        });
     });
 
     it('Server responds with files in artifacts', async () => {
