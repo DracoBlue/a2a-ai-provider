@@ -157,9 +157,6 @@ class A2aChatLanguageModel implements LanguageModelV2 {
     const { args, warnings } = this.getArgs(options);
 
     const client = await A2AClient.fromCardUrl(this.modelId);
-    const card = await client.getAgentCard();
-    console.log('card', card)
-    console.log('args', args)
 
     if (args.messages.length < 1) {
       throw new Error('Cannot handle zero messages!');
