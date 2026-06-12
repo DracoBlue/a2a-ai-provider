@@ -2,6 +2,7 @@ import { LanguageModelV2Prompt } from '@ai-sdk/provider';
 import { convertReadableStreamToArray } from '@ai-sdk/provider-utils/test';
 import { createTestServer } from '@ai-sdk/test-server';
 import { createA2a } from './a2a-provider';
+import { generateObject } from 'ai';
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { z } from 'zod';
 
