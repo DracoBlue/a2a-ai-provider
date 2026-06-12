@@ -1,11 +1,9 @@
 import { LanguageModelV2Prompt } from '@ai-sdk/provider';
-import {
-    convertReadableStreamToArray,
-    createTestServer,
-} from '@ai-sdk/provider-utils/test';
-import { generateObject } from 'ai';
+import { convertReadableStreamToArray } from '@ai-sdk/provider-utils/test';
+import { createTestServer } from '@ai-sdk/test-server';
 import { createA2a } from './a2a-provider';
-import { describe, it, expect } from 'vitest';
+import { generateObject } from 'ai';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { z } from 'zod';
 
 const TEST_PROMPT: LanguageModelV2Prompt = [
@@ -22,6 +20,10 @@ const server = createTestServer({
     'http://localhost:41241/.well-known/agent-card.json': {},
     'http://localhost:41241/': {}
 });
+
+beforeAll(() => server.server.start());
+afterEach(() => server.server.reset());
+afterAll(() => server.server.stop());
 
 
 describe('doGenerate', () => {
@@ -792,7 +794,7 @@ describe('doStream', () => {
             chunks: [
                 {
                     "jsonrpc": "2.0",
-                    "id": "1",
+                    "id": 1,
                     "result": {
                         "id": taskId,
                         "contextId": contextId,
