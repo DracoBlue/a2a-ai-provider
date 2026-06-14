@@ -34,11 +34,21 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Boot a2a tck server
+        run: .github/scripts/start-tck-server.sh -d
+
       - name: Lint Package
         run: pnpm run lint
 
       - name: Run Tests
         run: pnpm run test
+
+      - name: Stop a2a tck server
+        run: docker rm -f a2a-tck-server
 
       - name: Build Package
         run: pnpm run build
